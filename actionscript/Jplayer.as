@@ -8,8 +8,8 @@
  *  - http://www.gnu.org/copyleft/gpl.html
  *
  * Author: Mark J Panaghiston
- * Version: 2.2.19
- * Date: 29th January 2013
+ * Version: 2.3.0
+ * Date: 20th April 2013
  *
  * FlashVars expected: (AS3 property of: loaderInfo.parameters)
  *	id: 	(URL Encoded: String) Id of jPlayer instance
@@ -70,7 +70,7 @@ package {
 		private var isVideo:Boolean = false;
 
 		private var securityIssue:Boolean = false; // When SWF parameters contain illegal characters
-		private var directAccess:Boolean = false; // When SWF visited directly with no parameters
+		private var directAccess:Boolean = false; // When SWF visited directly with no parameters (or when security issue detected)
 
 		private var txLog:TextField;
 		private var debug:Boolean = false; // Set debug to false for release compile!
@@ -86,13 +86,14 @@ package {
 			// Fix to the security exploit reported by Jason Calvert http://appsec.ws/
 			checkFlashVars(loaderInfo.parameters);
 
+			stage.scaleMode = StageScaleMode.NO_SCALE;
+			stage.align = StageAlign.TOP_LEFT;
+
 			if(!securityIssue) {
 				jQuery = loaderInfo.parameters.jQuery + "('#" + loaderInfo.parameters.id + "').jPlayer";
 				commonStatus.volume = Number(loaderInfo.parameters.vol);
 				commonStatus.muted = loaderInfo.parameters.muted == "true";
 
-				stage.scaleMode = StageScaleMode.NO_SCALE;
-				stage.align = StageAlign.TOP_LEFT;
 				stage.addEventListener(Event.RESIZE, resizeHandler);
 				stage.addEventListener(MouseEvent.CLICK, clickHandler);
 
@@ -233,12 +234,12 @@ package {
 				}
 				i++;
 			}
-			if(i === 0) {
+			if(i === 0 || securityIssue) {
 				directAccess = true;
 			}
 		}
 		private function illegalChar(s:String):Boolean {
-			var illegals:String = "' \" ( ) { } * + /";
+			var illegals:String = "' \" ( ) { } * + / \\ < > = document alert";
 			if(Boolean(s)) { // Otherwise exception if parameter null.
 				for each (var illegal:String in illegals.split(' ')) {
 					if(s.indexOf(illegal) >= 0) {

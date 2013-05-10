@@ -8,12 +8,12 @@
  *  - http://www.gnu.org/copyleft/gpl.html
  *
  * Author: Mark J Panaghiston
- * Version: 2.2.19
- * Date: 29th January 2013
+ * Version: 2.3.0
+ * Date: 20th April 2013
  */
 
 /* Code verified using http://www.jshint.com/ */
-/*jshint asi:false, bitwise:false, boss:false, browser:true, curly:true, debug:false, eqeqeq:true, eqnull:false, evil:false, forin:false, immed:false, jquery:true, laxbreak:false, newcap:true, noarg:true, noempty:true, nonew:true, onevar:false, passfail:false, plusplus:false, regexp:false, undef:true, sub:false, strict:false, white:false smarttabs:true */
+/*jshint asi:false, bitwise:false, boss:false, browser:true, curly:true, debug:false, eqeqeq:true, eqnull:false, evil:false, forin:false, immed:false, jquery:true, laxbreak:false, newcap:true, noarg:true, noempty:true, nonew:true, onevar:false, passfail:false, plusplus:false, regexp:false, undef:true, sub:false, strict:false, white:false, smarttabs:true */
 /*global define:false, ActiveXObject:false, alert:false */
 
 (function (root, factory) {
@@ -454,8 +454,8 @@
 	$.jPlayer.prototype = {
 		count: 0, // Static Variable: Change it via prototype.
 		version: { // Static Object
-			script: "2.2.19",
-			needFlash: "2.2.19",
+			script: "2.3.0",
+			needFlash: "2.3.0",
 			flash: "unknown"
 		},
 		options: { // Instanced in $.jPlayer() constructor
@@ -489,6 +489,7 @@
 				gui: ".jp-gui", // The interface used with autohide feature.
 				noSolution: ".jp-no-solution" // For error feedback when jPlayer cannot find a solution.
 			},
+			smoothPlayBar: false, // Smooths the play bar transitions, which affects clicks and short media with big changes per second.
 			fullScreen: false, // Native Full Screen
 			fullWindow: false,
 			autohide: {
@@ -1533,7 +1534,13 @@
 				this.css.jq.seekBar.width(this.status.seekPercent+"%");
 			}
 			if(this.css.jq.playBar.length) {
-				this.css.jq.playBar.width(this.status.currentPercentRelative+"%");
+				if(this.options.smoothPlayBar) {
+					this.css.jq.playBar.stop().animate({
+						width: this.status.currentPercentAbsolute+"%"
+					}, 250, "linear");
+				} else {
+					this.css.jq.playBar.width(this.status.currentPercentRelative+"%");
+				}
 			}
 			if(this.css.jq.currentTime.length) {
 				this.css.jq.currentTime.text(this._convertTime(this.status.currentTime));
@@ -1905,9 +1912,9 @@
 
 					if(this.css.jq[fn].length) {
 						var handler = function(e) {
+							e.preventDefault();
 							self[fn](e);
 							$(this).blur();
-							return false;
 						};
 						this.css.jq[fn].bind("click.jPlayer", handler); // Using jPlayer namespace
 					}
