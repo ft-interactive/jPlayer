@@ -1,6 +1,6 @@
 {
   "name": "jplayer",
-  "version": "2.3.0",
+  "version": "2.4.1",
   "description": "The jQuery HTML5 Audio / Video Library",
   "homepage": "http://www.jplayer.org/",
   "keywords": [
@@ -8,16 +8,12 @@
     "video"
   ],
   "dependencies": {
-    "jquery": ">1.4.2"
+    "jquery": ">1.7.0"
   },
   "licenses": [
     {
       "type": "MIT",
-      "url": "http://www.opensource.org/licenses/mit-license.php"
-    },
-    {
-      "type" : "GPL",
-      "url": "http://www.gnu.org/copyleft/gpl.html"
+      "url": "http://www.opensource.org/licenses/MIT"
     }
   ],
   "repositories": [

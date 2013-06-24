@@ -3,19 +3,18 @@
  * http://www.jplayer.org
  *
  * Copyright (c) 2009 - 2013 Happyworm Ltd
- * Dual licensed under the MIT and GPL licenses.
- *  - http://www.opensource.org/licenses/mit-license.php
- *  - http://www.gnu.org/copyleft/gpl.html
+ * Licensed under the MIT.
+ * http://opensource.org/licenses/MIT
  *
  * Author: Mark J Panaghiston
- * Version: 2.3.0
- * Date: 20th April 2013
+ * Version: 2.4.1
+ * Date: 21st June 2013
  *
  * FlashVars expected: (AS3 property of: loaderInfo.parameters)
  *	id: 	(URL Encoded: String) Id of jPlayer instance
  *	vol:	(Number) Sets the initial volume
  *	muted:	(Boolean in a String) Sets the initial muted state
- *	jQuery:	(URL Encoded: String) Sets the jQuery var name. Used with: someVar = jQuery.noConflict(true);
+ *	jQuery:	(URL Encoded: String) Sets the jQuery var name. Used with: someVar = jQuery.noConflict(true); The someVar name must contain jQuery in it.
  *
  * Compiled using: Adobe Flex Compiler (mxmlc) Version 4.5.1 build 21328
  */
@@ -69,19 +68,19 @@ package {
 		private var isMp3:Boolean = false;
 		private var isVideo:Boolean = false;
 
-		private var securityIssue:Boolean = false; // When SWF parameters contain illegal characters
-		private var directAccess:Boolean = false; // When SWF visited directly with no parameters (or when security issue detected)
+		private var securityIssue:Boolean = false; // On direct access and when SWF parameters contain illegal characters
+
+		private var contextMenuFix:Sprite = new Sprite(); // A sprite that will be on top and fix the content menu over video bug. (A Flash plugin bug.)
 
 		private var txLog:TextField;
 		private var debug:Boolean = false; // Set debug to false for release compile!
 		private var localAIRDebug:Boolean = false; // This is autodetermined by AIR app - leave false!
 
-		private var traceOut:TraceOut;
-		//private var outgoing_lc = new LocalConnection ();
+		private var traceOut:TraceOut; // This class was found to cause problems on OSX with Firefox and Safari where more than 8 instances of the SWF are on a page.
+
 		public function Jplayer() {
 
 			flash.system.Security.allowDomain("*");
-			traceOut = new TraceOut();
 
 			// Fix to the security exploit reported by Jason Calvert http://appsec.ws/
 			checkFlashVars(loaderInfo.parameters);
@@ -90,6 +89,7 @@ package {
 			stage.align = StageAlign.TOP_LEFT;
 
 			if(!securityIssue) {
+				// The jQuery param is the primary cause of security concerns.
 				jQuery = loaderInfo.parameters.jQuery + "('#" + loaderInfo.parameters.id + "').jPlayer";
 				commonStatus.volume = Number(loaderInfo.parameters.vol);
 				commonStatus.muted = loaderInfo.parameters.muted == "true";
@@ -128,7 +128,7 @@ package {
 			contextMenu = myContextMenu;
 
 			// Log console for dev compile option: debug
-			if(debug || directAccess) {
+			if(debug || securityIssue) {
 				txLog = new TextField();
 				txLog.x = 5;
 				txLog.y = 5;
@@ -137,17 +137,13 @@ package {
 				txLog.backgroundColor = 0xEEEEFF;
 				txLog.border = true;
 				txLog.background = true;
+				txLog.multiline = true;
 				txLog.text = "jPlayer " + JplayerStatus.VERSION;
 
-				if(debug) {
-					txLog.multiline = true;
+				if(securityIssue) {
+					txLog.visible = true;
+				} else if(debug) {
 					txLog.visible = false;
-				} else if(directAccess) {
-					txLog.visible = true;
-				}
-				if(debug && directAccess) {
-					txLog.visible = true;
-					log("Direct Access");
 				}
 
 				this.addChild(txLog);
@@ -158,8 +154,17 @@ package {
 					myMp3Player.addEventListener(JplayerEvent.DEBUG_MSG, debugMsgHandler);
 					myMp4Player.addEventListener(JplayerEvent.DEBUG_MSG, debugMsgHandler);
 					myRtmpPlayer.addEventListener(JplayerEvent.DEBUG_MSG, debugMsgHandler);
+
+					traceOut = new TraceOut(); // Instance it only when in debug mode. See comment above at var declaration.
 				}
 			}
+
+			// Known Flash problem with contextMenu over video player.
+			// Add a transparent rectangle into the sprite.
+			contextMenuFix.graphics.beginFill(0x000000, 0); // Transparent black
+			contextMenuFix.graphics.drawRect(0, 0, 10, 10); // Arbitary rectangle
+			contextMenuFix.graphics.endFill();
+			addChild(contextMenuFix); // Put the sprite on the top layer.
 
 			if(!securityIssue) {
 				// Delay init() because Firefox 3.5.7+ developed a bug with local testing in Firebug.
@@ -227,27 +232,31 @@ package {
 			}
 		}
 		private function checkFlashVars(p:Object):void {
-			var i:Number = 0;
-			for each (var s:String in p) {
-				if(illegalChar(s)) {
-					securityIssue = true; // Illegal char found
+			// Check for direct access. Inspired by mediaelement.js - Also added name to HTML object for non-IE browsers.
+			if(ExternalInterface.objectID != null && ExternalInterface.objectID.toString() != "") {
+				for each (var s:String in p) {
+					if(illegalChar(s)) {
+						securityIssue = true; // Found a security concern.
+					}
 				}
-				i++;
-			}
-			if(i === 0 || securityIssue) {
-				directAccess = true;
+				if(!securityIssue) {
+					if(jQueryIllegal(p.jQuery)) {
+						securityIssue = true; // Found a security concern.
+					}
+				}
+			} else {
+				securityIssue = true; // Direct access disables the callbacks, which were a security concern.
 			}
 		}
 		private function illegalChar(s:String):Boolean {
-			var illegals:String = "' \" ( ) { } * + / \\ < > = document alert";
-			if(Boolean(s)) { // Otherwise exception if parameter null.
-				for each (var illegal:String in illegals.split(' ')) {
-					if(s.indexOf(illegal) >= 0) {
-						return true; // Illegal char found
-					}
-				}
-			}
-			return false;
+			// A whitelist of accepted chars.
+			var validParam:RegExp = /^[-A-Za-z0-9_.]+$/;
+			return !validParam.test(s);
+		}
+		private function jQueryIllegal(s:String):Boolean {
+			// Check param contains the term jQuery.
+			var validParam:RegExp = /(jQuery)/;
+			return !validParam.test(s);
 		}
 		// switchType() here
 		private function listenToMp3(active:Boolean):void {
@@ -263,6 +272,12 @@ package {
 
 				myMp3Player.addEventListener(JplayerEvent.JPLAYER_SEEKING, jPlayerFlashEvent);
 				myMp3Player.addEventListener(JplayerEvent.JPLAYER_SEEKED, jPlayerFlashEvent);
+
+				myMp3Player.addEventListener(JplayerEvent.JPLAYER_WAITING, jPlayerFlashEvent); // only MP3 atm
+				myMp3Player.addEventListener(JplayerEvent.JPLAYER_PLAYING, jPlayerFlashEvent); // only MP3 atm
+
+				myMp3Player.addEventListener(JplayerEvent.JPLAYER_CANPLAY, jPlayerFlashEvent); // only MP3 atm
+				myMp3Player.addEventListener(JplayerEvent.JPLAYER_CANPLAYTHROUGH, jPlayerFlashEvent); // only MP3 atm
 			} else {
 				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_ERROR, jPlayerFlashEvent);
 				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_PROGRESS, jPlayerFlashEvent);
@@ -275,6 +290,12 @@ package {
 
 				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_SEEKING, jPlayerFlashEvent);
 				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_SEEKED, jPlayerFlashEvent);
+
+				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_WAITING, jPlayerFlashEvent); // only MP3 atm
+				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_PLAYING, jPlayerFlashEvent); // only MP3 atm
+
+				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_CANPLAY, jPlayerFlashEvent); // only MP3 atm
+				myMp3Player.removeEventListener(JplayerEvent.JPLAYER_CANPLAYTHROUGH, jPlayerFlashEvent); // only MP3 atm
 			}
 		}
 		private function listenToMp4(active:Boolean):void {
@@ -359,7 +380,6 @@ package {
 			}
 		}
 		private function fl_setAudio_rtmp(src:String):Boolean {
-			tracer("SET RTMP: "+src);
 			if (src != null) {
 				log("fl_setAudio_rtmp: "+src);
 				switchType("rtmpa");
@@ -374,7 +394,6 @@ package {
 		}
 		
 		private function fl_setVideo_rtmp(src:String):Boolean {
-			tracer("SET RTMP: "+src);
 			if (src != null) {
 				log("fl_setVideo_rtmp: "+src);
 				switchType("rtmpv");
@@ -478,14 +497,15 @@ package {
 		}
 		private function jPlayerFlashEvent(e:JplayerEvent):void {
 			log("jPlayer Flash Event: " + e.type + ": " + e.target);
-			//tracer("jPlayer Flash Event: " + e.type + ": " + e.target);
 			if(ExternalInterface.available && !securityIssue) {
 				ExternalInterface.call(jQuery, "jPlayerFlashEvent", e.type, extractStatusData(e.data));
 			}
 		}
 		
 		private function tracer(msg:String):void {
-			traceOut.tracer(msg);
+			if(debug) {
+				traceOut.tracer(msg);
+			}
 		}
 		
 		private function extractStatusData(data:JplayerStatus):Object {
@@ -552,10 +572,15 @@ package {
 					resizeEntity(videoItem, mediaX, mediaY, mediaWidth, mediaHeight);
 				}
 			}
-			if((debug || directAccess) && stage.stageWidth > 20 && stage.stageHeight > 20) {
+			if((debug || securityIssue) && stage.stageWidth > 20 && stage.stageHeight > 20) {
 				txLog.width = stage.stageWidth - 10;
 				txLog.height = stage.stageHeight - 10;
 			}
+			// Resize the sprite so it covers the entire stage area
+			contextMenuFix.x = 0;
+			contextMenuFix.y = 0;
+			contextMenuFix.width = stage.stageWidth;
+			contextMenuFix.height = stage.stageHeight;
 		}
 		private function resizeEntity(entity:Sprite, mediaX:Number, mediaY:Number, mediaWidth:Number, mediaHeight:Number):void {
 			entity.x = mediaX;
@@ -585,6 +610,10 @@ package {
 				localAIRDebug = traceOut.localAIRDebug();
 				if(localAIRDebug) {
 					tracer(t);
+				}
+
+				if(ExternalInterface.available && !securityIssue) {
+					ExternalInterface.call("console.log", t);
 				}
 			}
 		}

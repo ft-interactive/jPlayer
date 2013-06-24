@@ -3,13 +3,14 @@
  * http://www.jplayer.org
  *
  * Copyright (c) 2009 - 2013 Happyworm Ltd
- * Dual licensed under the MIT and GPL licenses.
- *  - http://www.opensource.org/licenses/mit-license.php
- *  - http://www.gnu.org/copyleft/gpl.html
+ * Licensed under the MIT license.
+ * http://opensource.org/licenses/MIT
  *
  * Author: Robert M. Hall
  * Date: 7th August 2012
  */
+
+// This class was found to cause problems on OSX with Firefox and Safari where more than 8 instances of the SWF are on a page.
 
 package happyworm.jPlayer
 {
